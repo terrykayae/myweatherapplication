@@ -1,5 +1,6 @@
 package uk.co.tezk.myweatherapplication;
 
+import android.app.ProgressDialog;
 import android.os.Bundle;
 import android.support.design.widget.TabLayout;
 import android.support.v4.app.Fragment;
@@ -10,6 +11,8 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
@@ -37,6 +40,8 @@ public class MainActivity extends AppCompatActivity implements IWeatherPresenter
      * The {@link ViewPager} that will host the section contents.
      */
     private ViewPager mViewPager;
+
+    private ProgressDialog progressDialog;
 
     @Inject
     IWeatherPresenter.IPresenter mPresenter;
@@ -70,19 +75,29 @@ public class MainActivity extends AppCompatActivity implements IWeatherPresenter
     @Override
     public void onStartLoading() {
         Log.i("MA", "onStartLoading");
+        if (progressDialog == null) {
+            progressDialog = new ProgressDialog(this);
+            progressDialog.setMessage("Please wait, fetching the weather!");
+
+        }
+        progressDialog.show();
     }
 
     @Override
     public void showData(java.util.List<List> weatherList) {
-        Log.i("MA", "received a list of "+weatherList);
-
         int startDow = -1;
         Map <Integer, java.util.List <List>>weatherMap;
         weatherMap = new HashMap<>();
 
+        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
         for (List each : weatherList) {
             Calendar calendar = Calendar.getInstance();
-            calendar.setTimeInMillis(each.getDt());
+            try {
+                calendar.setTime(df.parse(each.getDtTxt()));
+            } catch (ParseException e) {
+                e.printStackTrace();
+            }
             int dow = calendar.get(Calendar.DAY_OF_WEEK);
             if (startDow == -1)
                 startDow = dow;
@@ -93,17 +108,24 @@ public class MainActivity extends AppCompatActivity implements IWeatherPresenter
             java.util.List <List> dayList = weatherMap.get(dow);
             dayList.add(each);
         }
+
+        for (int i=0; i<5; i++) {
+            PlaceholderFragment fragment = (PlaceholderFragment) mSectionsPagerAdapter.getItem(i);
+             fragment.setWeatherList(weatherMap.get((i+startDow)%7));
+        }
     }
 
     @Override
     public void onLoadingCompleted() {
         Log.i("MA", "onCompleteLoading");
+        progressDialog.dismiss();
     }
 
     @Override
     public void onError(Throwable e) {
         Log.i("MA", "onError : "+e.getMessage());
         e.printStackTrace();
+        progressDialog.dismiss();
     }
 
     /**
@@ -112,6 +134,8 @@ public class MainActivity extends AppCompatActivity implements IWeatherPresenter
      */
     public class SectionsPagerAdapter extends FragmentPagerAdapter {
 
+        PlaceholderFragment placeholderFragmentHolder[] = new PlaceholderFragment[5];
+
         public SectionsPagerAdapter(FragmentManager fm) {
             super(fm);
         }
@@ -119,8 +143,10 @@ public class MainActivity extends AppCompatActivity implements IWeatherPresenter
         @Override
         public Fragment getItem(int position) {
             // getItem is called to instantiate the fragment for the given page.
-            // Return a PlaceholderFragment (defined as a static inner class below).
-            return PlaceholderFragment.newInstance(position + 1);
+            // Return a PlaceholderFragment
+            if (placeholderFragmentHolder[position] == null)
+                placeholderFragmentHolder[position] = PlaceholderFragment.newInstance(position + 1);
+            return placeholderFragmentHolder[position];
         }
 
         @Override
